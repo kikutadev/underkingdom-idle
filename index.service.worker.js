@@ -4,7 +4,7 @@
 // Incrementing CACHE_VERSION will kick off the install event and force
 // previously cached resources to be updated from the network.
 /** @type {string} */
-const CACHE_VERSION = '1788584739|46717235';
+const CACHE_VERSION = 'cae21818e5a9';
 /** @type {string} */
 const CACHE_PREFIX = 'Underkingdom Idl-sw-cache-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
@@ -17,22 +17,29 @@ const ENSURE_CROSSORIGIN_ISOLATION_HEADERS = false;
 const CACHED_FILES = ["index.html","index.js","index.offline.html","index.icon.png","index.apple-touch-icon.png","index.audio.worklet.js","index.audio.position.worklet.js"];
 // Files that we might not want the user to preload, and will only be cached on first load.
 /** @type {string[]} */
-const CACHEABLE_FILES = ["index.wasm","index.pck"];
+const CACHEABLE_FILES = ["index.wasm","index-cae21818e5a9.pck"];
 const FULL_CACHE = CACHED_FILES.concat(CACHEABLE_FILES);
 
 self.addEventListener('install', (event) => {
-	event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(CACHED_FILES)));
+	event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(CACHED_FILES)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
-	event.waitUntil(caches.keys().then(
-		function (keys) {
-			// Remove old caches.
-			return Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map((key) => caches.delete(key)));
+	event.waitUntil(caches.keys().then(async (keys) => {
+		const oldCaches = keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME);
+		await Promise.all(oldCaches.map((key) => caches.delete(key)));
+		if ('navigationPreload' in self.registration) {
+			await self.registration.navigationPreload.enable();
 		}
-	).then(function () {
-		// Enable navigation preload if available.
-		return ('navigationPreload' in self.registration) ? self.registration.navigationPreload.enable() : Promise.resolve();
+		await self.clients.claim();
+		if (oldCaches.length > 0) {
+			// Do not interrupt Emscripten/WASM startup in-flight. An immediate navigate
+			// can leave Godot's allocator half-initialized in the renderer. This only
+			// runs during an existing-cache upgrade, never on a first visit.
+			await new Promise((resolve) => setTimeout(resolve, 6000));
+			const clients = await self.clients.matchAll({ type: 'window' });
+			await Promise.all(clients.map((client) => client.navigate(client.url)));
+		}
 	}));
 });
 
@@ -95,6 +102,10 @@ self.addEventListener(
 	 */
 	(event) => {
 		const isNavigate = event.request.mode === 'navigate';
+		if (isNavigate) {
+			event.respondWith(fetch(event.request, { cache: 'no-store' }).catch(() => caches.match(OFFLINE_URL)));
+			return;
+		}
 		const url = event.request.url || '';
 		const referrer = event.request.referrer || '';
 		const base = referrer.slice(0, referrer.lastIndexOf('/') + 1);
