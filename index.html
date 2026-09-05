@@ -112,9 +112,30 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","mainPack":"index-6151392b627d.pck","experimentalVK":false,"fileSizes":{"index-6151392b627d.pck":2266172,"index.wasm":37700666},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","mainPack":"index-3ac410f75689.pck","experimentalVK":false,"fileSizes":{"index-3ac410f75689.pck":2266636,"index.wasm":37700666},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
+
+window.__UNDERKINGDOM_SOURCE_COMMIT__ = '3ac410f75689';
+async function checkUnderkingdomSourceFreshness() {
+	try {
+		const response = await fetch('SOURCE_COMMIT?ts=' + Date.now(), { cache: 'no-store' });
+		if (!response.ok) return;
+		const remoteCommit = (await response.text()).trim();
+		if (!remoteCommit || remoteCommit.startsWith(window.__UNDERKINGDOM_SOURCE_COMMIT__)) return;
+		const next = new URL(window.location.href);
+		next.searchParams.set('build', remoteCommit.slice(0, 12));
+		window.location.replace(next.toString());
+	} catch (_error) {
+		// The debug build must remain playable offline; freshness is best-effort.
+	}
+}
+setTimeout(checkUnderkingdomSourceFreshness, 1500);
+setInterval(checkUnderkingdomSourceFreshness, 30000);
+document.addEventListener('visibilitychange', () => {
+	if (!document.hidden) checkUnderkingdomSourceFreshness();
+});
+
 if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistration().then((registration) => registration?.update()).catch(() => {}); }
 
 (function () {
